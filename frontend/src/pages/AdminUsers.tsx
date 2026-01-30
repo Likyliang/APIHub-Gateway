@@ -4,12 +4,9 @@ import toast from 'react-hot-toast'
 import { usersApi } from '../services/api'
 import { format } from 'date-fns'
 import {
-  Users,
   Plus,
   Trash2,
-  Edit2,
   X,
-  Check,
   RefreshCw,
   Shield,
   ShieldOff,
@@ -33,6 +30,7 @@ interface UserData {
 export default function AdminUsers() {
   const queryClient = useQueryClient()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
 
   const { data: users, isLoading } = useQuery<UserData[]>({

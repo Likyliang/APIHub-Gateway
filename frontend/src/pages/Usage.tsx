@@ -14,9 +14,6 @@ import {
   Legend,
 } from 'recharts'
 import {
-  Calendar,
-  Download,
-  Filter,
   Activity,
   Zap,
   Clock,

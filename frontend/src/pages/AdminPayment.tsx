@@ -32,6 +32,7 @@ interface PaymentStats {
 export default function AdminPayment() {
   const queryClient = useQueryClient()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [editingPlan, setEditingPlan] = useState<PricePlan | null>(null)
 
   const { data: stats } = useQuery<PaymentStats>({

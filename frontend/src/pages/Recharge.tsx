@@ -51,6 +51,7 @@ export default function Recharge() {
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<'wechat' | 'alipay'>('alipay')
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [checkingOrder, setCheckingOrder] = useState(false)
 
   const { data: plans, isLoading: plansLoading } = useQuery<PricePlan[]>({

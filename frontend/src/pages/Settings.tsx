@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../stores/auth'
-import { authApi } from '../services/api'
 import {
   User,
   Mail,
@@ -10,13 +9,10 @@ import {
   Save,
   Shield,
   Key,
-  Bell,
-  Palette,
 } from 'lucide-react'
 
 export default function Settings() {
-  const { user, updateUser } = useAuthStore()
-  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
   const [activeTab, setActiveTab] = useState('profile')
 
   const [email, setEmail] = useState(user?.email || '')
