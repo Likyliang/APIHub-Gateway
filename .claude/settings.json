@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "filesystem": {
+      "read": true,
+      "write": true,
+      "create": true,
+      "allowedPaths": [
+        "/home/solotice/workspace/APIHub-Gateway",
+        "/home/solotice/workspace/CLIProxyAPI-sastic"
+      ]
+    },
+    "network": {
+      "allow_external": true
+    },
+    "shell": {
+      "allow_commands": true
+    }
+  },
+  "autoApprove": {
+    "fileOperations": true,
+    "shellCommands": [
+      "npm *",
+      "go *",
+      "git *",
+      "mkdir *",
+      "node *",
+      "python *",
+      "pip *"
+    ]
+  },
+  "context": {
+    "relatedProjects": [
+      "/home/solotice/workspace/CLIProxyAPI-sastic"
+    ]
+  }
+}

@@ -1,0 +1,172 @@
+"""
+API Key Service - Business logic for API key management
+"""
+import json
+from datetime import datetime, timezone
+from typing import Optional, List
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..models.api_key import APIKey
+from ..utils.auth import generate_api_key, hash_api_key
+
+
+class APIKeyService:
+    """Service for API key management operations."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_key(
+        self,
+        user_id: int,
+        name: str,
+        description: Optional[str] = None,
+        rate_limit: int = 60,
+        quota_limit: Optional[float] = None,
+        allowed_models: Optional[List[str]] = None,
+        expires_at: Optional[datetime] = None,
+    ) -> tuple[APIKey, str]:
+        """Create a new API key. Returns (key_model, plain_key)."""
+        # Generate the key
+        plain_key = generate_api_key()
+        key_hash = hash_api_key(plain_key)
+
+        api_key = APIKey(
+            key=plain_key[:20] + "..." + plain_key[-8:],  # Masked for display
+            key_hash=key_hash,
+            name=name,
+            description=description,
+            user_id=user_id,
+            rate_limit=rate_limit,
+            quota_limit=quota_limit,
+            allowed_models=json.dumps(allowed_models or []),
+            expires_at=expires_at,
+        )
+
+        self.db.add(api_key)
+        await self.db.flush()
+        await self.db.refresh(api_key)
+
+        return api_key, plain_key
+
+    async def get_key_by_id(self, key_id: int) -> Optional[APIKey]:
+        """Get API key by ID."""
+        result = await self.db.execute(select(APIKey).where(APIKey.id == key_id))
+        return result.scalar_one_or_none()
+
+    async def get_key_by_hash(self, key_hash: str) -> Optional[APIKey]:
+        """Get API key by hash."""
+        result = await self.db.execute(select(APIKey).where(APIKey.key_hash == key_hash))
+        return result.scalar_one_or_none()
+
+    async def validate_key(self, plain_key: str) -> Optional[APIKey]:
+        """Validate an API key and return the key model if valid."""
+        key_hash = hash_api_key(plain_key)
+        api_key = await self.get_key_by_hash(key_hash)
+
+        if not api_key:
+            return None
+
+        # Check if key is active
+        if not api_key.is_active:
+            return None
+
+        # Check expiration
+        if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
+            return None
+
+        # Update last used
+        api_key.last_used_at = datetime.now(timezone.utc)
+
+        return api_key
+
+    async def get_keys_by_user(
+        self, user_id: int, include_inactive: bool = False
+    ) -> List[APIKey]:
+        """Get all API keys for a user."""
+        query = select(APIKey).where(APIKey.user_id == user_id)
+        if not include_inactive:
+            query = query.where(APIKey.is_active == True)
+        query = query.order_by(APIKey.created_at.desc())
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def update_key(self, key_id: int, user_id: int, **kwargs) -> Optional[APIKey]:
+        """Update API key attributes."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key or api_key.user_id != user_id:
+            return None
+
+        # Handle allowed_models specially
+        if "allowed_models" in kwargs:
+            kwargs["allowed_models"] = json.dumps(kwargs["allowed_models"])
+
+        for key, value in kwargs.items():
+            if hasattr(api_key, key) and key not in ("key", "key_hash", "user_id"):
+                setattr(api_key, key, value)
+
+        await self.db.flush()
+        await self.db.refresh(api_key)
+        return api_key
+
+    async def deactivate_key(self, key_id: int, user_id: int) -> bool:
+        """Deactivate an API key."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key or api_key.user_id != user_id:
+            return False
+        api_key.is_active = False
+        return True
+
+    async def delete_key(self, key_id: int, user_id: int) -> bool:
+        """Delete an API key."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key or api_key.user_id != user_id:
+            return False
+        await self.db.delete(api_key)
+        return True
+
+    async def increment_usage(
+        self, key_id: int, tokens: int = 0, cost: float = 0.0
+    ) -> Optional[APIKey]:
+        """Increment usage statistics for an API key."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key:
+            return None
+
+        api_key.total_requests += 1
+        api_key.total_tokens += tokens
+        api_key.quota_used += cost
+
+        return api_key
+
+    async def check_quota(self, key_id: int) -> tuple[bool, float, Optional[float]]:
+        """Check if API key has remaining quota. Returns (has_quota, used, limit)."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key:
+            return False, 0.0, None
+
+        if api_key.quota_limit is None:
+            # No per-key limit, defer to user limit
+            return True, api_key.quota_used, None
+
+        return api_key.quota_used < api_key.quota_limit, api_key.quota_used, api_key.quota_limit
+
+    async def check_model_access(self, key_id: int, model: str) -> bool:
+        """Check if API key has access to a specific model."""
+        api_key = await self.get_key_by_id(key_id)
+        if not api_key:
+            return False
+
+        allowed_models = json.loads(api_key.allowed_models or "[]")
+        if not allowed_models:
+            # Empty list means all models allowed
+            return True
+
+        return model in allowed_models
+
+    async def get_all_keys(self, skip: int = 0, limit: int = 100) -> List[APIKey]:
+        """Get all API keys (admin only)."""
+        result = await self.db.execute(
+            select(APIKey).offset(skip).limit(limit).order_by(APIKey.created_at.desc())
+        )
+        return list(result.scalars().all())
