@@ -29,6 +29,7 @@ interface ApiKey {
   total_tokens: number
   created_at: string
   last_used_at: string | null
+  allowed_models?: string[]
 }
 
 export default function ApiKeys() {
@@ -37,10 +38,16 @@ export default function ApiKeys() {
   const [newKeyData, setNewKeyData] = useState<ApiKey | null>(null)
   const [showKey, setShowKey] = useState<number | null>(null)
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null)
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
 
   const { data: keys, isLoading } = useQuery<ApiKey[]>({
     queryKey: ['keys'],
     queryFn: () => keysApi.list(),
+  })
+
+  const { data: modelsData } = useQuery<{ models: string[] }>({
+    queryKey: ['available-models'],
+    queryFn: () => keysApi.getModels(),
   })
 
   const createMutation = useMutation({
@@ -86,9 +93,21 @@ export default function ApiKeys() {
       name: formData.get('name') as string,
       description: formData.get('description') as string,
       rate_limit: parseInt(formData.get('rate_limit') as string) || 60,
+      allowed_models: selectedModels.length > 0 ? selectedModels : undefined,
     })
     setShowCreateModal(false)
+    setSelectedModels([])
   }
+
+  const toggleModel = (model: string) => {
+    setSelectedModels(prev =>
+      prev.includes(model)
+        ? prev.filter(m => m !== model)
+        : [...prev, model]
+    )
+  }
+
+  const availableModels = modelsData?.models || []
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -293,7 +312,7 @@ export default function ApiKeys() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-slide-up">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900">创建 API Key</h2>
             </div>
@@ -334,10 +353,43 @@ export default function ApiKeys() {
                   max={1000}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  允许的模型（不选则允许所有）
+                </label>
+                {availableModels.length > 0 ? (
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                    {availableModels.map((model) => (
+                      <label
+                        key={model}
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedModels.includes(model)}
+                          onChange={() => toggleModel(model)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-700 font-mono">{model}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">无法获取模型列表，将允许所有模型</p>
+                )}
+                {selectedModels.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    已选择 {selectedModels.length} 个模型
+                  </p>
+                )}
+              </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowCreateModal(false)
+                    setSelectedModels([])
+                  }}
                   className="btn-secondary"
                 >
                   取消

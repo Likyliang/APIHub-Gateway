@@ -6,13 +6,61 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 from ..database import get_db
 from ..services.key_service import APIKeyService
 from ..middleware.auth import get_current_active_user, get_admin_user
 from ..models.user import User
+from ..config import settings
 
 
 router = APIRouter(prefix="/keys", tags=["API Keys"])
+
+# HTTP client for fetching models
+_http_client = None
+
+def get_http_client():
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=30.0)
+    return _http_client
+
+
+# ===========================================
+# Models Endpoint (JWT Auth)
+# ===========================================
+
+@router.get("/models")
+async def list_available_models(
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get available models from upstream (for API key creation)."""
+    try:
+        client = get_http_client()
+        headers = {}
+        if settings.upstream_api_key:
+            headers["Authorization"] = f"Bearer {settings.upstream_api_key}"
+
+        response = await client.get(
+            f"{settings.upstream_url}/v1/models",
+            headers=headers,
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            # Extract model IDs from response
+            models = []
+            if "data" in data:
+                for model in data["data"]:
+                    if isinstance(model, dict) and "id" in model:
+                        models.append(model["id"])
+                    elif isinstance(model, str):
+                        models.append(model)
+            return {"models": sorted(models)}
+        else:
+            return {"models": [], "error": "Failed to fetch models from upstream"}
+    except Exception as e:
+        return {"models": [], "error": str(e)}
 
 
 # ===========================================

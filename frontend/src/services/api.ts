@@ -61,6 +61,7 @@ export const keysApi = {
     description?: string
     rate_limit?: number
     quota_limit?: number
+    allowed_models?: string[]
   }) => {
     const { data } = await api.post('/keys', keyData)
     return data
@@ -70,12 +71,17 @@ export const keysApi = {
     description?: string
     rate_limit?: number
     is_active?: boolean
+    allowed_models?: string[]
   }) => {
     const { data } = await api.put(`/keys/${keyId}`, keyData)
     return data
   },
   delete: async (keyId: number) => {
     await api.delete(`/keys/${keyId}`)
+  },
+  getModels: async () => {
+    const { data } = await api.get('/keys/models')
+    return data
   },
 }
 

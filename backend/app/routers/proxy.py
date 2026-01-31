@@ -361,7 +361,7 @@ async def health_check():
     return {"status": "healthy", "service": "APIHub-Gateway"}
 
 
-# Models endpoint
+# Models endpoint (with API key auth)
 @router.get("/v1/models")
 async def list_models(
     request: Request,
