@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../stores/auth'
+import api from '../services/api'
 import {
   User,
   Mail,
@@ -9,14 +10,15 @@ import {
   Save,
   Shield,
   Key,
+  AlertTriangle,
 } from 'lucide-react'
 
 export default function Settings() {
-  const { user } = useAuthStore()
+  const { user, updateUser, logout } = useAuthStore()
   const [activeTab, setActiveTab] = useState('profile')
 
+  const [username, setUsername] = useState(user?.username || '')
   const [email, setEmail] = useState(user?.email || '')
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
@@ -32,6 +34,32 @@ export default function Settings() {
     },
   })
 
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: { username?: string; email?: string; password?: string }) => {
+      const res = await api.put('/auth/me', data)
+      return res.data
+    },
+    onSuccess: (data) => {
+      // Update local state with new user info
+      updateUser({
+        username: data.username,
+        email: data.email,
+      })
+      toast.success('个人资料已更新')
+      // If username changed, user needs to re-login
+      if (data.username !== user?.username) {
+        toast.success('用户名已更改，请重新登录')
+        setTimeout(() => {
+          logout()
+          window.location.href = '/login'
+        }, 1500)
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '更新失败')
+    },
+  })
+
   const tabs = [
     { id: 'profile', label: '个人资料', icon: User },
     { id: 'security', label: '安全设置', icon: Shield },
@@ -40,8 +68,21 @@ export default function Settings() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Implement profile update
-    toast.success('个人资料已更新')
+    const updates: { username?: string; email?: string } = {}
+
+    if (username !== user?.username) {
+      updates.username = username
+    }
+    if (email !== user?.email) {
+      updates.email = email
+    }
+
+    if (Object.keys(updates).length === 0) {
+      toast.error('没有需要更新的内容')
+      return
+    }
+
+    updateProfileMutation.mutate(updates)
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -50,9 +91,12 @@ export default function Settings() {
       toast.error('两次输入的密码不一致')
       return
     }
-    // TODO: Implement password change
-    toast.success('密码已更新')
-    setCurrentPassword('')
+    if (newPassword.length < 6) {
+      toast.error('密码长度至少6位')
+      return
+    }
+
+    updateProfileMutation.mutate({ password: newPassword })
     setNewPassword('')
     setConfirmPassword('')
   }
@@ -100,12 +144,17 @@ export default function Settings() {
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
-                      value={user?.username || ''}
-                      className="input pl-10 bg-gray-50"
-                      disabled
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="input pl-10"
+                      placeholder="输入新用户名"
+                      minLength={3}
+                      maxLength={50}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">用户名不可更改</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    修改用户名后需要重新登录
+                  </p>
                 </div>
 
                 <div>
@@ -123,10 +172,26 @@ export default function Settings() {
                   </div>
                 </div>
 
+                {user?.is_admin && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-amber-800">安全建议</p>
+                      <p className="text-sm text-amber-600 mt-1">
+                        作为管理员，强烈建议您修改默认用户名和密码以提高安全性。
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end">
-                  <button type="submit" className="btn-primary flex items-center space-x-2">
+                  <button
+                    type="submit"
+                    disabled={updateProfileMutation.isPending}
+                    className="btn-primary flex items-center space-x-2"
+                  >
                     <Save className="w-4 h-4" />
-                    <span>保存更改</span>
+                    <span>{updateProfileMutation.isPending ? '保存中...' : '保存更改'}</span>
                   </button>
                 </div>
               </form>
@@ -139,23 +204,6 @@ export default function Settings() {
               <form onSubmit={handleChangePassword} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    当前密码
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="input pl-10"
-                      placeholder="请输入当前密码"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     新密码
                   </label>
                   <div className="relative">
@@ -165,8 +213,9 @@ export default function Settings() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="input pl-10"
-                      placeholder="请输入新密码"
+                      placeholder="请输入新密码（至少6位）"
                       required
+                      minLength={6}
                     />
                   </div>
                 </div>
@@ -189,9 +238,13 @@ export default function Settings() {
                 </div>
 
                 <div className="flex justify-end">
-                  <button type="submit" className="btn-primary flex items-center space-x-2">
+                  <button
+                    type="submit"
+                    disabled={updateProfileMutation.isPending}
+                    className="btn-primary flex items-center space-x-2"
+                  >
                     <Save className="w-4 h-4" />
-                    <span>更新密码</span>
+                    <span>{updateProfileMutation.isPending ? '更新中...' : '更新密码'}</span>
                   </button>
                 </div>
               </form>
@@ -206,7 +259,7 @@ export default function Settings() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <p className="text-sm text-gray-500">总配额</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {quota?.quota_limit === Infinity ? '无限' : quota?.quota_limit?.toFixed(2) || '0'}
+                      {quota?.quota_limit === null || quota?.is_unlimited ? '无限' : quota?.quota_limit?.toFixed(2) || '0'}
                     </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">
@@ -218,7 +271,7 @@ export default function Settings() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <p className="text-sm text-gray-500">剩余</p>
                     <p className="text-2xl font-bold text-green-600">
-                      {quota?.quota_remaining?.toFixed(2) || '0'}
+                      {quota?.is_unlimited ? '无限' : quota?.quota_remaining?.toFixed(2) || '0'}
                     </p>
                   </div>
                 </div>

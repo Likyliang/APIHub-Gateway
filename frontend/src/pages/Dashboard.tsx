@@ -128,19 +128,19 @@ export default function Dashboard() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">已使用 / 总配额</span>
               <span className="font-medium">
-                {quota.quota_used.toFixed(2)} / {quota.quota_limit === Infinity ? '无限' : quota.quota_limit.toFixed(2)}
+                {quota.quota_used?.toFixed(2) || '0.00'} / {quota.quota_limit === null || quota.quota_limit === undefined ? '无限' : quota.quota_limit.toFixed(2)}
               </span>
             </div>
             <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
-                  quota.quota_percentage > 90
+                  (quota.quota_percentage || 0) > 90
                     ? 'bg-red-500'
-                    : quota.quota_percentage > 70
+                    : (quota.quota_percentage || 0) > 70
                     ? 'bg-amber-500'
                     : 'bg-primary-500'
                 }`}
-                style={{ width: `${Math.min(quota.quota_percentage, 100)}%` }}
+                style={{ width: `${Math.min(quota.quota_percentage || 0, 100)}%` }}
               />
             </div>
           </div>

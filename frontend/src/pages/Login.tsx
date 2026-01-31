@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { authApi } from '../services/api'
 import { useAuthStore } from '../stores/auth'
+import { queryClient } from '../main'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 
 export default function Login() {
@@ -16,6 +17,8 @@ export default function Login() {
   const mutation = useMutation({
     mutationFn: () => authApi.login(username, password),
     onSuccess: (data) => {
+      // Clear all cached data from previous user
+      queryClient.clear()
       login(data.access_token, data.user)
       toast.success('登录成功')
       navigate('/dashboard')

@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/auth'
+import { queryClient } from '../main'
 import {
   LayoutDashboard,
   Key,
@@ -20,6 +21,8 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = () => {
+    // Clear all cached data
+    queryClient.clear()
     logout()
     navigate('/login')
   }

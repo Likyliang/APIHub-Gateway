@@ -13,6 +13,15 @@ API密钥管理与分发平台 - 为CLIProxyAPI提供完整的API密钥管理、
 - **API代理** - 透明代理到上游CLIProxyAPI服务
 - **支付集成** - 支持易支付(EPay)接口
 
+### 安全特性
+| 功能 | 描述 |
+|------|------|
+| 用户名可修改 | 所有用户（包括管理员）可以修改自己的用户名 |
+| 登录防暴力破解 | 同一IP连续失败5次后锁定5分钟 |
+| 权限隔离 | 普通用户只能查看自己的数据，管理员可查看全部 |
+| JWT认证 | 安全的Token认证机制 |
+| 数据缓存隔离 | 切换用户时自动清除前用户缓存 |
+
 ### API密钥功能
 | 功能 | 描述 |
 |------|------|
@@ -46,8 +55,9 @@ API密钥管理与分发平台 - 为CLIProxyAPI提供完整的API密钥管理、
 
 ### 前端
 - **React 18** - 用户界面
-- **Ant Design** - UI组件库
-- **Axios** - HTTP客户端
+- **TailwindCSS** - 样式框架
+- **React Query** - 数据获取和缓存
+- **Zustand** - 状态管理
 - **React Router** - 路由管理
 
 ## 快速开始
@@ -56,6 +66,24 @@ API密钥管理与分发平台 - 为CLIProxyAPI提供完整的API密钥管理、
 - Python 3.10+
 - Node.js 18+
 - SQLite 或 PostgreSQL
+- Go 1.20+ (可选，一键启动脚本会自动安装)
+
+### 一键启动（推荐）
+
+使用 `run-all.sh` 脚本可以同时启动 CLIProxyAPI 和 APIHub-Gateway 所有服务：
+
+```bash
+chmod +x run-all.sh
+./run-all.sh
+```
+
+该脚本会自动：
+- 检查并安装 Go（到用户目录，无需 sudo）
+- 构建并启动 CLIProxyAPI (端口 8317)
+- 启动 APIHub-Gateway 后端 (端口 8000)
+- 启动 APIHub-Gateway 前端 (端口 3000)
+
+按 `Ctrl+C` 可停止所有服务。日志文件位于 `/tmp/` 目录下。
 
 ### 后端启动
 
@@ -82,7 +110,7 @@ cd frontend
 npm install
 
 # 启动开发服务器
-npm start
+npm run dev
 ```
 
 ### Docker方式
@@ -95,6 +123,15 @@ docker-compose up -d
 - 前端: http://localhost:3000
 - 后端API: http://localhost:8000
 - API文档: http://localhost:8000/docs
+
+## 首次部署安全建议
+
+> **重要**: 首次部署后请立即执行以下安全操作：
+
+1. **修改管理员用户名** - 登录后进入 设置 → 个人资料，将默认用户名 `admin` 改为不易猜测的名称
+2. **修改管理员密码** - 进入 设置 → 安全设置，修改默认密码
+3. **修改 SECRET_KEY** - 在 `.env` 文件中设置一个强随机密钥
+4. **配置 CORS** - 生产环境中限制 `allow_origins` 为你的域名
 
 ## 配置说明
 
@@ -122,7 +159,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=10080
 UPSTREAM_URL=http://127.0.0.1:8317
 UPSTREAM_API_KEY=your-upstream-api-key
 
-# 管理员账号
+# 管理员账号（仅用于首次创建，之后可在界面修改）
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
 ADMIN_EMAIL=admin@apihub.local
@@ -139,14 +176,15 @@ EPAY_KEY=your_epay_key
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | POST | `/api/auth/register` | 用户注册 |
-| POST | `/api/auth/login` | 用户登录 |
+| POST | `/api/auth/login` | 用户登录（含暴力破解保护） |
 | GET | `/api/auth/me` | 获取当前用户信息 |
+| PUT | `/api/auth/me` | 更新用户信息（用户名/邮箱/密码） |
 
 ### API密钥管理
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | POST | `/api/keys` | 创建API密钥 |
-| GET | `/api/keys` | 获取密钥列表 |
+| GET | `/api/keys` | 获取密钥列表（仅自己的） |
 | POST | `/api/keys/batch` | 批量创建密钥 |
 | GET | `/api/keys/batch/{batch_id}` | 获取批次密钥 |
 | GET | `/api/keys/{key_id}` | 获取密钥详情 |
@@ -221,6 +259,17 @@ curl -X POST http://localhost:8000/api/keys/batch \
   }'
 ```
 
+### 修改用户名
+
+```bash
+curl -X PUT http://localhost:8000/api/auth/me \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "new_username"
+  }'
+```
+
 ### 充值代币
 
 ```bash
@@ -249,6 +298,7 @@ curl http://localhost:8000/v1/chat/completions \
 ## 数据模型
 
 ### User (用户)
+- `username` - 用户名（可修改）
 - `token_balance` - 代币余额
 - `total_recharged` - 累计充值
 - `total_consumed` - 累计消费
@@ -303,6 +353,7 @@ APIHub-Gateway/
 │   │   ├── components/    # 组件
 │   │   ├── pages/         # 页面
 │   │   ├── services/      # API 服务
+│   │   ├── stores/        # 状态管理
 │   │   └── App.tsx
 │   ├── package.json
 │   └── Dockerfile
