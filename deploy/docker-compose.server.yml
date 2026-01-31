@@ -1,0 +1,59 @@
+version: '3.8'
+
+# ============================================
+# 使用预构建镜像的 docker-compose (服务器用)
+# 不需要在服务器上构建，直接拉取镜像
+# ============================================
+
+services:
+  # APIHub-Gateway 后端
+  apihub-backend:
+    image: likyliang/apihub-gateway-backend:latest
+    container_name: apihub-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///data/apihub.db
+      - SECRET_KEY=${SECRET_KEY}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@apihub.local}
+      - UPSTREAM_URL=${UPSTREAM_URL:-http://cli-proxy-api:8317}
+      - UPSTREAM_API_KEY=${UPSTREAM_API_KEY:-}
+      - EPAY_URL=${EPAY_URL:-}
+      - EPAY_PID=${EPAY_PID:-}
+      - EPAY_KEY=${EPAY_KEY:-}
+    volumes:
+      - ./data:/data
+    expose:
+      - "8000"
+    networks:
+      - nginx-proxy-manager_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # APIHub-Gateway 前端
+  apihub-frontend:
+    image: likyliang/apihub-gateway-frontend:latest
+    container_name: apihub-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    # 如果不用 Nginx Proxy Manager，直接暴露端口:
+    # ports:
+    #   - "3000:80"
+    depends_on:
+      - apihub-backend
+    networks:
+      - nginx-proxy-manager_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  nginx-proxy-manager_default:
+    external: true
