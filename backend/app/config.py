@@ -4,7 +4,6 @@ Application Configuration
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional
-from functools import lru_cache
 
 
 class Settings(BaseSettings):
@@ -30,6 +29,7 @@ class Settings(BaseSettings):
     # Upstream proxy (CLIProxyAPI)
     upstream_url: str = "http://127.0.0.1:8317"
     upstream_timeout: int = 300  # 5 minutes for long requests
+    upstream_api_key: str = ""  # 上游服务的 API Key (如果需要)
 
     # API Key settings
     api_key_prefix: str = "ahg"  # APIHub-Gateway prefix
@@ -62,9 +62,8 @@ class Settings(BaseSettings):
         case_sensitive = False
 
 
-@lru_cache()
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """Get settings instance."""
     return Settings()
 
 

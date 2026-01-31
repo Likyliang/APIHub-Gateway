@@ -11,7 +11,7 @@ import sys
 
 from .config import settings
 from .database import init_db, close_db, async_session_maker
-from .routers import auth_router, keys_router, usage_router, users_router, proxy_router, payment_router
+from .routers import auth_router, keys_router, usage_router, users_router, proxy_router, payment_router, tokens_router
 from .services.user_service import UserService
 from .services.payment_service import PaymentService
 
@@ -131,6 +131,7 @@ app.include_router(keys_router, prefix="/api")
 app.include_router(usage_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(payment_router, prefix="/api")
+app.include_router(tokens_router, prefix="/api")
 app.include_router(proxy_router)  # Proxy routes at root level
 
 

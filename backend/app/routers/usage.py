@@ -136,15 +136,27 @@ async def get_quota_status(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get current quota status."""
+    import math
+
+    quota_limit = current_user.quota_limit
+    quota_used = current_user.quota_used
+
+    # Handle infinity for JSON serialization
+    if math.isinf(quota_limit):
+        quota_remaining = float("inf")
+        quota_percentage = 0
+        quota_limit_display = None  # null means unlimited
+    else:
+        quota_remaining = max(0, quota_limit - quota_used)
+        quota_percentage = (quota_used / quota_limit * 100) if quota_limit > 0 else 0
+        quota_limit_display = quota_limit
+
     return {
-        "quota_limit": current_user.quota_limit,
-        "quota_used": current_user.quota_used,
-        "quota_remaining": max(0, current_user.quota_limit - current_user.quota_used),
-        "quota_percentage": (
-            (current_user.quota_used / current_user.quota_limit * 100)
-            if current_user.quota_limit > 0
-            else 0
-        ),
+        "quota_limit": quota_limit_display,
+        "quota_used": quota_used,
+        "quota_remaining": quota_remaining if not math.isinf(quota_remaining) else None,
+        "quota_percentage": quota_percentage,
+        "is_unlimited": math.isinf(current_user.quota_limit),
     }
 
 

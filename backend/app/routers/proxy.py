@@ -142,6 +142,13 @@ async def proxy_request(
     headers = dict(request.headers)
     headers.pop("host", None)
     headers.pop("content-length", None)
+    # Remove original authorization to replace with upstream key
+    headers.pop("authorization", None)
+    headers.pop("Authorization", None)
+
+    # Replace with upstream API key if configured
+    if settings.upstream_api_key:
+        headers["Authorization"] = f"Bearer {settings.upstream_api_key}"
 
     # Check if streaming
     is_streaming = False
@@ -357,11 +364,28 @@ async def health_check():
 # Models endpoint
 @router.get("/v1/models")
 async def list_models(
+    request: Request,
     api_key: APIKey = Depends(get_api_key),
 ):
     """List available models (proxy to upstream)."""
     try:
-        response = await http_client.get(f"{settings.upstream_url}/v1/models")
-        return response.json()
+        # Prepare headers with upstream auth
+        headers = {}
+        if settings.upstream_api_key:
+            headers["Authorization"] = f"Bearer {settings.upstream_api_key}"
+        else:
+            # Forward original auth if no upstream key configured
+            if "authorization" in request.headers:
+                headers["Authorization"] = request.headers["authorization"]
+
+        response = await http_client.get(
+            f"{settings.upstream_url}/v1/models",
+            headers=headers,
+        )
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            media_type=response.headers.get("content-type"),
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream error: {str(e)}")
